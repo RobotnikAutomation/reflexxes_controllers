@@ -5,6 +5,16 @@
     type="reflexxes_position_controllers::JointTrajectoryController"
     base_class_type="controller_interface::ControllerBase">
     <description>
+      The JointTrajectoryController tracks trajectory commands. It expects a
+      PositionJointInterface type of hardware interface.
+    </description>
+  </class>
+  
+  <class 
+    name="reflexxes_position_controllers/JointPositionController"
+    type="reflexxes_position_controllers::JointPositionController"
+    base_class_type="controller_interface::ControllerBase">
+    <description>
       The JointPositionController tracks position commands. It expects a
       PositionJointInterface type of hardware interface.
     </description>

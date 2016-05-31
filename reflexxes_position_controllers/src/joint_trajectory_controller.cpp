@@ -139,10 +139,10 @@ bool JointTrajectoryController::init(hardware_interface::PositionJointInterface 
     urdf::Model urdf;
     std::string urdf_str;
     ros::NodeHandle nh;
-    nh.getParam("robot_description", urdf_str);
+    nh.getParam("/robot_description", urdf_str);
 
     if (!urdf.initString(urdf_str)) {
-        ROS_ERROR("Failed to parse urdf from 'robot_description' parameter (namespace: %s)", nh.getNamespace().c_str());
+        ROS_ERROR("Failed to parse urdf from '/robot_description' parameter (namespace: %s)", nh.getNamespace().c_str());
         return false;
     }
 

@@ -4,11 +4,11 @@
   <version>0.0.0</version>
   <description>The reflexxes_position_controllers package</description>
 
-  <maintainer email="jbo@jhu.edu">Jonathan Bohren</maintainer>
+  <maintainer email="marco.esposito@tum.de">Marco Esposito</maintainer>
 
   <license>LGPL</license>
 
-  <author email="jbo@jhu.edu">Jonathan Bohren</author>
+  <author email="marco.esposito@tum.de">Marco Esposito</author>
 
   <build_depend>realtime_tools</build_depend>
   <build_depend>control_msgs</build_depend>

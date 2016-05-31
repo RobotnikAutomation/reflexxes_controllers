@@ -121,9 +121,6 @@ public:
     std::vector<hardware_interface::JointHandle> joints_;
     std::vector<boost::shared_ptr<const urdf::Joint> > urdf_joints_;
 
-    size_t point_index_;
-    ros::Time commanded_start_time_;
-
 private:
     ros::NodeHandle nh_;
     int loop_count_;
@@ -143,13 +140,12 @@ private:
     bool new_reference_;
     bool recompute_trajectory_;
 
-    boost::scoped_ptr<realtime_tools::RealtimePublisher<control_msgs::JointControllerState> >
-    controller_state_publisher_ ;
+    boost::scoped_ptr<realtime_tools::RealtimePublisher<control_msgs::JointControllerState> > controller_state_publisher_ ;
 
     // Command subscriber
     ros::Subscriber trajectory_command_sub_;
-    void trajectoryCommandCB(const trajectory_msgs::JointTrajectoryConstPtr &msg);
-    void setTrajectoryCommand(const trajectory_msgs::JointTrajectoryConstPtr &msg);
+    void trajectoryCommandCB(const trajectory_msgs::JointTrajectoryPointConstPtr &msg);
+    void setTrajectoryCommand(const trajectory_msgs::JointTrajectoryPointConstPtr &msg);
 };
 
 } // namespace

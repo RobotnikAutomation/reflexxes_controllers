@@ -99,9 +99,7 @@ void JointTrajectoryController::rml_debug(const ros::console::levels::Level leve
 }
 
 
-bool JointTrajectoryController::init(
-    hardware_interface::PositionJointInterface *robot,
-    ros::NodeHandle &n) {
+bool JointTrajectoryController::init(hardware_interface::PositionJointInterface *robot, ros::NodeHandle &n) {
     // Store nodehandle
     nh_ = n;
 
@@ -155,7 +153,7 @@ bool JointTrajectoryController::init(
     position_tolerances_.resize(n_joints_);
     max_accelerations_.resize(n_joints_);
     max_jerks_.resize(n_joints_);
-    commanded_efforts_.resize(n_joints_);
+    commanded_positions_.resize(n_joints_);
 
     for (int i = 0; i < n_joints_; i++) {
         // Get joint name
@@ -267,16 +265,14 @@ void JointTrajectoryController::starting(const ros::Time &time) {
     // Reset PID integrator and effort commands
     for (int i = 0; i < n_joints_; i++) {
         pids_[i]->reset();
-        commanded_efforts_[i] = 0.0;
+        commanded_positions_[i] = 0.0;
     }
 
     // Set new reference flag for initial command point
     new_reference_ = true;
 }
 
-void JointTrajectoryController::update(
-    const ros::Time &time,
-    const ros::Duration &period) {
+void JointTrajectoryController::update(const ros::Time &time, const ros::Duration &period) {
     // Read the latest commanded trajectory message
     const trajectory_msgs::JointTrajectory &commanded_trajectory = *(trajectory_command_buffer_.readFromRT());
 
@@ -407,7 +403,7 @@ void JointTrajectoryController::update(
 
         // Set the PID error and compute the PID command with nonuniform time
         // step size.
-        commanded_efforts_[i] = pids_[i]->computeCommand(pos_error, vel_error, period);
+        commanded_positions_[i] = pids_[i]->computeCommand(pos_error, vel_error, period);
     }
 
     // Only set a non-zero effort command if the
@@ -426,13 +422,14 @@ void JointTrajectoryController::update(
         recompute_trajectory_ = true;
         break;
 
-    default
-            :
+    default:
         if (loop_count_ % decimation_ == 0) {
-            ROS_ERROR("Reflexxes error code: %d. Setting effort commands to zero.", rml_result);
+            ROS_ERROR("Reflexxes error code: %d. Setting position commands to measured position.", rml_result);
         }
 
-        commanded_efforts_.assign(n_joints_, 0.0);
+        for (int i = 0; i < n_joints_; i++)
+            commanded_positions_[i] = joints_[i].getPosition();
+        
         break;
     };
 

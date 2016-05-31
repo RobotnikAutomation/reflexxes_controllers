@@ -120,7 +120,7 @@ public:
     std::vector<double> position_tolerances_;
     std::vector<double> max_accelerations_;
     std::vector<double> max_jerks_;
-    std::vector<double> commanded_efforts_;
+    std::vector<double> commanded_positions_;
     std::vector<hardware_interface::JointHandle> joints_;
     std::vector<boost::shared_ptr<const urdf::Joint> > urdf_joints_;
 

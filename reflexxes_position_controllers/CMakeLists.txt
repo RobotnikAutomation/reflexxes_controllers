@@ -75,7 +75,8 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 ## Declare a cpp library
 add_library(reflexxes_position_controllers
   src/joint_trajectory_controller.cpp
-  )
+  src/joint_position_controller.cpp
+)
 target_link_libraries(reflexxes_position_controllers ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 ## Declare a cpp executable

@@ -49,36 +49,33 @@
  *
  *********************************************************************/
 
-#ifndef EFFORT_CONTROLLERS_JOINT_POSITION_CONTROLLER_H
-#define EFFORT_CONTROLLERS_JOINT_POSITION_CONTROLLER_H
+#ifndef POSITION_CONTROLLERS_JOINT_TRAJECTORY_CONTROLLER_H
+#define POSITION_CONTROLLERS_JOINT_TRAJECTORY_CONTROLLER_H
 
 /**
   @class reflexxes_position_controllers::JointTrajectoryController
   @brief Joint Position Controller
 
-  This class controls positon using a pid loop.
+  This class controls position using the Reflexxes interpolation.
 
   @section ROS ROS interface
 
   @param type Must be "reflexxes_position_controllers::JointTrajectoryController"
   @param joint Name of the joint to control.
-  @param pid Contains the gains for the PID loop around position.  See: control_toolbox::Pid
 
   Subscribes to:
 
   - @b command (std_msgs::Float64) : The joint position to achieve.
 
-Publishes:
+  Publishes:
 
-- @b state (control_msgs::JointControllerState) :
-Current state of the controller, including pid error and gains.
+  - @b state (control_msgs::JointControllerState) :
+    Current state of the controller, including pid error and gains.
 
 */
 
 #include <ros/node_handle.h>
 #include <urdf/model.h>
-#include <control_toolbox/pid.h>
-#include <control_toolbox/pid_gains_setter.h>
 #include <boost/scoped_ptr.hpp>
 #include <boost/thread/condition.hpp>
 #include <realtime_tools/realtime_publisher.h>
@@ -107,7 +104,7 @@ public:
 public:
     bool init(hardware_interface::PositionJointInterface *robot, ros::NodeHandle &n);
     void starting(const ros::Time &time);
-    void stopping(const ros::Time &time) { };
+    void stopping(const ros::Time &time) { }
     void update(const ros::Time &time, const ros::Duration &period);
 
 public:
@@ -116,7 +113,6 @@ public:
 
     size_t n_joints_;
     std::vector<std::string> joint_names_;
-    std::vector< boost::shared_ptr<control_toolbox::Pid> > pids_;
     std::vector<double> position_tolerances_;
     std::vector<double> max_accelerations_;
     std::vector<double> max_jerks_;

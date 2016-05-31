@@ -95,7 +95,8 @@ void JointTrajectoryController::rml_debug(const ros::console::levels::Level leve
 
     ROS_LOG_STREAM(level, ROSCONSOLE_DEFAULT_NAME, "RML INPUT MaxVelocityVector: " << (*rml_in_->MaxVelocityVector));
     ROS_LOG_STREAM(level, ROSCONSOLE_DEFAULT_NAME, "RML INPUT TargetPositionVector: " << (*rml_in_->TargetPositionVector));
-    ROS_LOG_STREAM(level, ROSCONSOLE_DEFAULT_NAME, "RML INPUT AlternativeTargetVelocityVector: " << (*rml_in_->AlternativeTargetVelocityVector));
+    ROS_LOG_STREAM(level, ROSCONSOLE_DEFAULT_NAME, "RML INPUT AlternativeTargetVelocityVector: " 
+        << (*rml_in_->AlternativeTargetVelocityVector));
 }
 
 
@@ -147,7 +148,6 @@ bool JointTrajectoryController::init(hardware_interface::PositionJointInterface 
 
     // Get individual joint properties from urdf and parameter server
     joint_names_.resize(n_joints_);
-    pids_.resize(n_joints_);
     joints_.resize(n_joints_);
     urdf_joints_.resize(n_joints_);
     position_tolerances_.resize(n_joints_);
@@ -167,15 +167,8 @@ bool JointTrajectoryController::init(hardware_interface::PositionJointInterface 
         // Get the joint-namespace nodehandle
         {
             ros::NodeHandle joint_nh(nh_, "joints/" + joint_names_[i]);
-            ROS_INFO("Loading joint information for joint '%s' (namespace: %s)", joint_names_[i].c_str(), joint_nh.getNamespace().c_str());
-
-            // Initialize PID from rosparam
-            pids_[i].reset(new control_toolbox::Pid());
-
-            if (!pids_[i]->init(ros::NodeHandle(joint_nh, "pid"))) {
-                ROS_WARN_STREAM_NAMED("jtc", "Failed to initialize PID from rosparam");
-                return false;
-            }
+            ROS_INFO("Loading joint information for joint '%s' (namespace: %s)", 
+                     joint_names_[i].c_str(), joint_nh.getNamespace().c_str());
 
             // Get position tolerance
             if (!joint_nh.hasParam("position_tolerance")) {
@@ -262,10 +255,9 @@ void JointTrajectoryController::starting(const ros::Time &time) {
     initial_command.points.push_back(initial_point);
     trajectory_command_buffer_.initRT(initial_command);
 
-    // Reset PID integrator and effort commands
+    // Reset commands
     for (int i = 0; i < n_joints_; i++) {
-        pids_[i]->reset();
-        commanded_positions_[i] = 0.0;
+        commanded_positions_[i] = joints_[i].getPosition();
     }
 
     // Set new reference flag for initial command point
@@ -355,58 +347,22 @@ void JointTrajectoryController::update(const ros::Time &time, const ros::Duratio
 
         if (tracking_error > position_tolerances_[i]) {
             recompute_trajectory_ = true;
-            ROS_WARN_STREAM("Tracking for joint " << i << " outside of tolerance! (" << tracking_error << " > " << position_tolerances_[i] << ")");
+            ROS_WARN_STREAM("Tracking for joint " << i << " outside of tolerance! (" << tracking_error 
+                << " > " << position_tolerances_[i] << ")");
         }
     }
 
     // Apply joint-PIDs
     for (int i = 0; i < n_joints_; i++) {
         // Convenience variables
-        double pos_actual = joints_[i].getPosition(),
-               vel_actual = joints_[i].getVelocity();
+        double pos_actual = joints_[i].getPosition();
 
         double pos_target = rml_out_->NewPositionVector->VecData[i];
-        double vel_target = rml_out_->NewVelocityVector->VecData[i];
-        double pos_error;
-        double vel_error;
-        double commanded_effort;
 
-        // Compute position error between the actual and the target state
-        switch (urdf_joints_[i]->type) {
-
-            // Revolute joint with limits
-        case urdf::Joint::REVOLUTE:
-            angles::shortest_angular_distance_with_limits(
-                pos_actual,
-                pos_target,
-                urdf_joints_[i]->limits->lower,
-                urdf_joints_[i]->limits->upper,
-                pos_error);
-            break;
-
-            // Continuous joint with no limits
-        case urdf::Joint::CONTINUOUS:
-            pos_error = angles::shortest_angular_distance(
-                            pos_actual,
-                            pos_target);
-            break;
-
-            // Prismatic joint types
-        default
-                :
-            pos_error = pos_target - pos_actual;
-            break;
-        };
-
-        // Compute velocity error between the actual and the target state
-        vel_error = vel_target - vel_actual;
-
-        // Set the PID error and compute the PID command with nonuniform time
-        // step size.
-        commanded_positions_[i] = pids_[i]->computeCommand(pos_error, vel_error, period);
+        commanded_positions_[i] = pos_target;
     }
 
-    // Only set a non-zero effort command if the
+    // Only set a different position command if the
     switch (rml_result) {
     case ReflexxesAPI::RML_WORKING:
         // S'all good.
@@ -435,8 +391,7 @@ void JointTrajectoryController::update(const ros::Time &time, const ros::Duratio
 
     // Set the lower-level commands
     for (int i = 0; i < n_joints_; i++) {
-        // Set the command
-        joints_[i].setCommand(commanded_efforts_[i]);
+        joints_[i].setCommand(commanded_positions_[i]);
     }
 
     // Publish state

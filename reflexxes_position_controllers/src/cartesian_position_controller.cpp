@@ -238,6 +238,8 @@ bool CartesianPositionController::init(hardware_interface::PositionJointInterfac
         return false;
     }
     fk_solver.reset(new KDL::ChainFkSolverPos_recursive(chain));
+    current_joint_position.resize(n_joints_);
+    target_joint_position.resize(n_joints_);
 
     // Create state publisher
     // TODO: create state publisher
@@ -250,8 +252,6 @@ bool CartesianPositionController::init(hardware_interface::PositionJointInterfac
 
     return true;
 }
-
-
 
 void CartesianPositionController::starting(const ros::Time &time) {
     // Define an initial command point from the current position
@@ -298,12 +298,10 @@ void CartesianPositionController::update(const ros::Time &time, const ros::Durat
     // Compute RML traj after the start time and if there are still points in the queue
     if (recompute_trajectory_) {
         // Solve inverse kinematics
-        static KDL::JntArray q(n_joints_), target_joint_position(n_joints_);
         for (int i = 0; i < n_joints_; i++)
-            q(i) = joints_[i].getPosition();
-        static KDL::Frame target_cart_position;
+            current_joint_position(i) = joints_[i].getPosition();
         tf::poseMsgToKDL(commanded_trajectory.pose, target_cart_position);
-        int rc = tracik_solver->CartToJnt(q,target_cart_position,target_joint_position);
+        int rc = tracik_solver->CartToJnt(current_joint_position,target_cart_position,target_joint_position);
         
         // Compute the trajectory
         ROS_DEBUG("RML Recomputing trajectory...");
@@ -312,9 +310,9 @@ void CartesianPositionController::update(const ros::Time &time, const ros::Durat
         for (int i = 0; i < n_joints_; i++) {
             rml_in_->CurrentPositionVector->VecData[i] = joints_[i].getPosition();
             rml_in_->CurrentVelocityVector->VecData[i] = joints_[i].getVelocity();
-            rml_in_->CurrentAccelerationVector->VecData[i] = 0.0;
 
             rml_in_->TargetPositionVector->VecData[i] = target_joint_position(i);
+            rml_in_->TargetVelocityVector->VecData[i] = 0;
 
             rml_in_->SelectionVector->VecData[i] = true;
         }
@@ -362,12 +360,7 @@ void CartesianPositionController::update(const ros::Time &time, const ros::Durat
 
     // Compute command
     for (int i = 0; i < n_joints_; i++) {
-        // Convenience variables
-        double pos_actual = joints_[i].getPosition();
-
-        double pos_target = rml_out_->NewPositionVector->VecData[i];
-
-        commanded_positions_[i] = pos_target;
+        commanded_positions_[i] = rml_out_->NewPositionVector->VecData[i];
     }
 
     // Only set a different position command if the
@@ -438,7 +431,7 @@ void CartesianPositionController::trajectoryCommandCB(
 
 void CartesianPositionController::setTrajectoryCommand(
     const geometry_msgs::PoseStampedConstPtr &msg) {
-    ROS_INFO("Received new command");
+    ROS_DEBUG("Received new command");
     // the writeFromNonRT can be used in RT, if you have the guarantee that
     //  * no non-rt thread is calling the same function (we're not subscribing to ros callbacks)
     //  * there is only one single rt thread

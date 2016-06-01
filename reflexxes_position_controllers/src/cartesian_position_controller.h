@@ -131,6 +131,9 @@ private:
     //! Kinematic solvers
     std::unique_ptr<TRAC_IK::TRAC_IK> tracik_solver;
     std::unique_ptr<KDL::ChainFkSolverPos_recursive> fk_solver;
+    KDL::JntArray current_joint_position;
+    KDL::Frame target_cart_position;
+    KDL::JntArray target_joint_position;
     std::string root_name;
     std::string tip_name;
 

@@ -246,7 +246,7 @@ bool CartesianPositionController::init(hardware_interface::PositionJointInterfac
 
     // Create command subscriber
     trajectory_command_sub_ = nh_.subscribe<geometry_msgs::PoseStamped>(
-                                  "joint_position_command", 1, &CartesianPositionController::trajectoryCommandCB, this);
+                                  "cartesian_position_command", 1, &CartesianPositionController::trajectoryCommandCB, this);
 
     return true;
 }

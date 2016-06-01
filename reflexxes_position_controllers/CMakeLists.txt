@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(reflexxes_position_controllers)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -14,7 +16,14 @@ find_package(catkin REQUIRED
   controller_interface 
   realtime_tools
   urdf
-  reflexxes_type2)
+  reflexxes_type2
+  trac_ik_lib
+  cmake_modules
+  kdl_conversions
+  eigen_conversions)
+  
+find_package(Eigen REQUIRED)
+
 
 ## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED COMPONENTS system thread)
@@ -70,12 +79,13 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
+include_directories(${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${Eigen_INCLUDE_DIRS})
 
 ## Declare a cpp library
 add_library(reflexxes_position_controllers
   src/joint_trajectory_controller.cpp
   src/joint_position_controller.cpp
+  src/cartesian_position_controller.cpp
 )
 target_link_libraries(reflexxes_position_controllers ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 

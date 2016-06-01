@@ -1,5 +1,4 @@
 <library path="lib/libreflexxes_position_controllers">
-
   <class 
     name="reflexxes_position_controllers/JointTrajectoryController"
     type="reflexxes_position_controllers::JointTrajectoryController"
@@ -17,6 +16,16 @@
     <description>
       The JointPositionController tracks position commands. It expects a
       PositionJointInterface type of hardware interface.
+    </description>
+  </class>
+  <class 
+    name="reflexxes_position_controllers/CartesianPositionController"
+    type="reflexxes_position_controllers::CartesianPositionController"
+    base_class_type="controller_interface::ControllerBase">
+    <description>
+      The CartesianPositionController tracks cartesian commands. It expects a
+      PositionJointInterface type of hardware interface. Inverse kinematics is 
+      computed through trac_ik.
     </description>
   </class>
 </library>

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<package>
+<package format="2">
   <name>reflexxes_position_controllers</name>
   <version>0.0.0</version>
   <description>The reflexxes_position_controllers package</description>
@@ -10,28 +10,20 @@
 
   <author email="marco.esposito@tum.de">Marco Esposito</author>
 
-  <build_depend>realtime_tools</build_depend>
-  <build_depend>control_msgs</build_depend>
-  <build_depend>trajectory_msgs</build_depend>
-  <build_depend>std_msgs</build_depend>
-  <build_depend>hardware_interface</build_depend>
-  <build_depend>controller_interface</build_depend>
-  <build_depend>control_toolbox</build_depend>
-  <build_depend>roscpp</build_depend>
-  <build_depend>urdf</build_depend>
-  <build_depend>reflexxes_type2</build_depend>
-
-  <run_depend>controller_interface</run_depend>
-  <run_depend>realtime_tools</run_depend>
-  <run_depend>control_msgs</run_depend>
-  <run_depend>trajectory_msgs</run_depend>
-  <run_depend>std_msgs</run_depend>
-  <run_depend>hardware_interface</run_depend>
-  <run_depend>control_toolbox</run_depend>
-  <run_depend>roscpp</run_depend>
-  <run_depend>urdf</run_depend>
-  <run_depend>reflexxes_type2</run_depend>
-
+  <depend>realtime_tools</depend>
+  <depend>control_msgs</depend>
+  <depend>trajectory_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>hardware_interface</depend>
+  <depend>controller_interface</depend>
+  <depend>control_toolbox</depend>
+  <depend>roscpp</depend>
+  <depend>urdf</depend>
+  <depend>reflexxes_type2</depend>
+  <depend>trac_ik_lib</depend>
+  <depend>kdl_conversions</depend>
+  <depend>eigen_conversions</depend>
+  
   <buildtool_depend>catkin</buildtool_depend>
 
   <export>

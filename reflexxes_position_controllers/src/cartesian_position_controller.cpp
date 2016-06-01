@@ -49,15 +49,16 @@
  *
  *********************************************************************/
 
-#include "joint_position_controller.h"
+#include "cartesian_position_controller.h"
 #include <angles/angles.h>
 #include <pluginlib/class_list_macros.h>
 #include <trajectory_msgs/JointTrajectory.h>
+#include <kdl_conversions/kdl_msg.h>
 #include <sstream>
 
 namespace reflexxes_position_controllers {
 
-JointPositionController::JointPositionController()
+CartesianPositionController::CartesianPositionController()
     : loop_count_(0),
       decimation_(10),
       sampling_resolution_(0.001),
@@ -65,7 +66,7 @@ JointPositionController::JointPositionController()
       recompute_trajectory_(false)
 {}
 
-JointPositionController::~JointPositionController() {
+CartesianPositionController::~CartesianPositionController() {
     trajectory_command_sub_.shutdown();
 }
 
@@ -82,7 +83,7 @@ std::ostream &operator<< (std::ostream &stream, const RMLVector<T> &rml_vec) {
     return stream;
 }
 
-void JointPositionController::rml_debug(const ros::console::levels::Level level) {
+void CartesianPositionController::rml_debug(const ros::console::levels::Level level) {
     ROS_LOG_STREAM(level, ROSCONSOLE_DEFAULT_NAME, "RML INPUT NumberOfDOFs: " << rml_in_->NumberOfDOFs);
     ROS_LOG_STREAM(level, ROSCONSOLE_DEFAULT_NAME, "RML INPUT MinimumSynchronizationTime: " << rml_in_->MinimumSynchronizationTime);
     ROS_LOG_STREAM(level, ROSCONSOLE_DEFAULT_NAME, "RML INPUT SelectionVector: " << (*rml_in_->SelectionVector));
@@ -100,7 +101,7 @@ void JointPositionController::rml_debug(const ros::console::levels::Level level)
 }
 
 
-bool JointPositionController::init(hardware_interface::PositionJointInterface *robot, ros::NodeHandle &n) {
+bool CartesianPositionController::init(hardware_interface::PositionJointInterface *robot, ros::NodeHandle &n) {
     // Store nodehandle
     nh_ = n;
 
@@ -121,7 +122,7 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
     // Get number of joints
     n_joints_ = xml_array.size();
 
-    ROS_INFO_STREAM("Initializing JointPositionController with " << n_joints_ << " joints.");
+    ROS_INFO_STREAM("Initializing CartesianPositionController with " << n_joints_ << " joints.");
 
     // Get trajectory sampling resolution
     if (!nh_.hasParam("sampling_resolution")) {
@@ -140,6 +141,8 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
     std::string urdf_str;
     ros::NodeHandle nh;
     nh.getParam("/robot_description", urdf_str);
+    nh_.getParam("root_name", root_name);
+    nh_.getParam("tip_name", tip_name);
 
     if (!urdf.initString(urdf_str)) {
         ROS_ERROR("Failed to parse urdf from '/robot_description' parameter (namespace: %s)", nh.getNamespace().c_str());
@@ -225,6 +228,16 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
         this->rml_debug(ros::console::levels::Warn);
         return false;
     }
+    
+    // Init Kinematic solvers
+    tracik_solver.reset(new TRAC_IK::TRAC_IK(root_name, tip_name));
+    KDL::Chain chain;
+    bool chain_parsed = tracik_solver->getKDLChain(chain);
+    if (!chain_parsed){
+        ROS_ERROR("trac_ik could not parse KDL chain from URDF!");
+        return false;
+    }
+    fk_solver.reset(new KDL::ChainFkSolverPos_recursive(chain));
 
     // Create state publisher
     // TODO: create state publisher
@@ -232,39 +245,40 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
     //new realtime_tools::RealtimePublisher<control_msgs::JointControllerState>(n, "state", 1));
 
     // Create command subscriber
-    trajectory_command_sub_ = nh_.subscribe<trajectory_msgs::JointTrajectoryPoint>(
-                                  "joint_position_command", 1, &JointPositionController::trajectoryCommandCB, this);
+    trajectory_command_sub_ = nh_.subscribe<geometry_msgs::PoseStamped>(
+                                  "joint_position_command", 1, &CartesianPositionController::trajectoryCommandCB, this);
 
     return true;
 }
 
 
 
-void JointPositionController::starting(const ros::Time &time) {
+void CartesianPositionController::starting(const ros::Time &time) {
     // Define an initial command point from the current position
-    trajectory_msgs::JointTrajectoryPoint initial_point;
+    geometry_msgs::PoseStamped initial_point;
+   
+    KDL::JntArray initial_joint_position(n_joints_);
+    KDL::Frame initial_cart_position;
 
-    for (int i = 0; i < n_joints_; i++) {
-        initial_point.positions.push_back(joints_[i].getPosition());
-        initial_point.velocities.push_back(joints_[i].getVelocity());
-        initial_point.accelerations.push_back(0.0);
-    }
-
-    initial_point.time_from_start = ros::Duration(1.0);
+    for (int i = 0; i < n_joints_; i++) 
+        initial_joint_position(i) = joints_[i].getPosition();
+    
+    fk_solver->JntToCart(initial_joint_position, initial_cart_position);
+    tf::poseKDLToMsg(initial_cart_position, initial_point.pose);
+    
     trajectory_command_buffer_.initRT(initial_point);
 
     // Reset commands
-    for (int i = 0; i < n_joints_; i++) {
+    for (int i = 0; i < n_joints_; i++) 
         commanded_positions_[i] = joints_[i].getPosition();
-    }
 
     // Set new reference flag for initial command point
     new_reference_ = true;
 }
 
-void JointPositionController::update(const ros::Time &time, const ros::Duration &period) {
-    // Read the latest commanded trajectory message
-    const trajectory_msgs::JointTrajectoryPoint &commanded_trajectory = *(trajectory_command_buffer_.readFromRT());
+void CartesianPositionController::update(const ros::Time &time, const ros::Duration &period) {
+    // Read the latest commanded cartesian pose message
+    const geometry_msgs::PoseStamped &commanded_trajectory = *(trajectory_command_buffer_.readFromRT());
 
     // Check for a new reference
     if (new_reference_) {
@@ -283,6 +297,14 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
 
     // Compute RML traj after the start time and if there are still points in the queue
     if (recompute_trajectory_) {
+        // Solve inverse kinematics
+        static KDL::JntArray q(n_joints_), target_joint_position(n_joints_);
+        for (int i = 0; i < n_joints_; i++)
+            q(i) = joints_[i].getPosition();
+        static KDL::Frame target_cart_position;
+        tf::poseMsgToKDL(commanded_trajectory.pose, target_cart_position);
+        int rc = tracik_solver->CartToJnt(q,target_cart_position,target_joint_position);
+        
         // Compute the trajectory
         ROS_DEBUG("RML Recomputing trajectory...");
 
@@ -292,8 +314,7 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
             rml_in_->CurrentVelocityVector->VecData[i] = joints_[i].getVelocity();
             rml_in_->CurrentAccelerationVector->VecData[i] = 0.0;
 
-            rml_in_->TargetPositionVector->VecData[i] = commanded_trajectory.positions[i];
-            rml_in_->TargetVelocityVector->VecData[i] = commanded_trajectory.velocities[i];
+            rml_in_->TargetPositionVector->VecData[i] = target_joint_position(i);
 
             rml_in_->SelectionVector->VecData[i] = true;
         }
@@ -410,13 +431,13 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
     loop_count_++;
 }
 
-void JointPositionController::trajectoryCommandCB(
-    const trajectory_msgs::JointTrajectoryPointConstPtr &msg) {
+void CartesianPositionController::trajectoryCommandCB(
+    const geometry_msgs::PoseStampedConstPtr &msg) {
     this->setTrajectoryCommand(msg);
 }
 
-void JointPositionController::setTrajectoryCommand(
-    const trajectory_msgs::JointTrajectoryPointConstPtr &msg) {
+void CartesianPositionController::setTrajectoryCommand(
+    const geometry_msgs::PoseStampedConstPtr &msg) {
     ROS_INFO("Received new command");
     // the writeFromNonRT can be used in RT, if you have the guarantee that
     //  * no non-rt thread is calling the same function (we're not subscribing to ros callbacks)
@@ -429,5 +450,5 @@ void JointPositionController::setTrajectoryCommand(
 } // namespace
 
 PLUGINLIB_EXPORT_CLASS(
-    reflexxes_position_controllers::JointPositionController,
+    reflexxes_position_controllers::CartesianPositionController,
     controller_interface::ControllerBase)

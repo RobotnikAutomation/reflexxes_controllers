@@ -112,9 +112,14 @@ public:
     /**< Last commanded position. */
     realtime_tools::RealtimeBuffer<trajectory_msgs::JointTrajectoryPoint> trajectory_command_buffer_;
 
+    //! Trajectory parameters
+    double sampling_resolution_;
+    bool recompute_trajectory_;
+    
     size_t n_joints_;
     std::vector<std::string> joint_names_;
     std::vector<double> position_tolerances_;
+    std::vector<double> max_velocities_;
     std::vector<double> max_accelerations_;
     std::vector<double> max_jerks_;
     std::vector<double> commanded_positions_;
@@ -133,12 +138,11 @@ private:
     boost::shared_ptr<RMLPositionInputParameters> rml_in_;
     boost::shared_ptr<RMLPositionOutputParameters> rml_out_;
     RMLPositionFlags rml_flags_;
-    ros::Time traj_start_time_;
-
-    //! Trajectory parameters
-    double sampling_resolution_;
+    ros::Time traj_start_time_;   
+    
+    //! Helper variables
     bool new_reference_;
-    bool recompute_trajectory_;
+    bool must_recompute_trajectory_;
 
     boost::scoped_ptr<realtime_tools::RealtimePublisher<control_msgs::JointControllerState> > controller_state_publisher_ ;
 

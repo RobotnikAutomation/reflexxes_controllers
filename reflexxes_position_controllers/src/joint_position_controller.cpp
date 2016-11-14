@@ -62,7 +62,7 @@ JointPositionController::JointPositionController()
       decimation_(10),
       sampling_resolution_(0.001),
       new_reference_(false),
-      recompute_trajectory_(false)
+      must_recompute_trajectory_(false)
 {}
 
 JointPositionController::~JointPositionController() {
@@ -129,6 +129,13 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
     }
 
     nh_.param("sampling_resolution", sampling_resolution_, 0.001);
+    
+    // Get behavior after reaching point
+    if (!nh_.hasParam("recompute_trajectory")) {
+        ROS_INFO("No behavior after reaching point specified (namespace: %s), using default (keep trajectory).", nh_.getNamespace().c_str());
+    }
+
+    nh_.param("recompute_trajectory", recompute_trajectory_, false);
 
     // Create trajectory generator
     rml_.reset(new ReflexxesAPI(n_joints_, sampling_resolution_));
@@ -151,6 +158,7 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
     joints_.resize(n_joints_);
     urdf_joints_.resize(n_joints_);
     position_tolerances_.resize(n_joints_);
+    max_velocities_.resize(n_joints_);
     max_accelerations_.resize(n_joints_);
     max_jerks_.resize(n_joints_);
     commanded_positions_.resize(n_joints_);
@@ -177,6 +185,14 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
             }
 
             joint_nh.param("position_tolerance", position_tolerances_[i], 0.1);
+            
+            // Get maximum velocity
+            if (!joint_nh.hasParam("max_velocity")) {
+                ROS_INFO("No max_velocity specified (namespace: %s), using default from URDF.",
+                         joint_nh.getNamespace().c_str());
+            }
+
+            joint_nh.param("max_velocity", max_velocities_[i], 0.0);
 
             // Get maximum acceleration
             if (!joint_nh.hasParam("max_acceleration")) {
@@ -186,7 +202,7 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
 
             joint_nh.param("max_acceleration", max_accelerations_[i], 1.0);
 
-            // Get maximum acceleration
+            // Get maximum jerk
             if (!joint_nh.hasParam("max_jerk")) {
                 ROS_INFO("No max_jerk specified (namespace: %s), using default.",
                          joint_nh.getNamespace().c_str());
@@ -207,7 +223,7 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
         }
 
         // Get RML parameters from URDF
-        rml_in_->MaxVelocityVector->VecData[i] = urdf_joints_[i]->limits->velocity;
+        rml_in_->MaxVelocityVector->VecData[i] = max_velocities_[i] == 0 ? urdf_joints_[i]->limits->velocity : max_velocities_[i];
         rml_in_->MaxAccelerationVector->VecData[i] = max_accelerations_[i];
         rml_in_->MaxJerkVector->VecData[i] = max_jerks_[i];
     }
@@ -272,7 +288,7 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
         // Reset new reference flag
         new_reference_ = false;
         // Set flag to recompute trajectory
-        recompute_trajectory_ = true;
+        must_recompute_trajectory_ = true;
 
         ROS_DEBUG("Received new reference.");
     }
@@ -282,7 +298,7 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
 
 
     // Compute RML traj after the start time and if there are still points in the queue
-    if (recompute_trajectory_) {
+    if (must_recompute_trajectory_) {
         // Compute the trajectory
         ROS_DEBUG("RML Recomputing trajectory...");
 
@@ -310,8 +326,8 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
 
 //         ROS_DEBUG_STREAM("RML IN: time: " << rml_in_->GetMinimumSynchronizationTime());
 
-        // Hold fixed at final point once trajectory is complete
-        rml_flags_.BehaviorAfterFinalStateOfMotionIsReached = RMLPositionFlags::RECOMPUTE_TRAJECTORY;
+        // Specify behavior after reaching point
+        rml_flags_.BehaviorAfterFinalStateOfMotionIsReached = recompute_trajectory_ ? RMLPositionFlags::RECOMPUTE_TRAJECTORY : RMLPositionFlags::KEEP_TARGET_VELOCITY;
         rml_flags_.SynchronizationBehavior = RMLPositionFlags::ONLY_TIME_SYNCHRONIZATION;
 
         // Compute trajectory
@@ -320,7 +336,7 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
                                        rml_flags_);
 
         // Disable recompute flag
-        recompute_trajectory_ = false;
+        must_recompute_trajectory_ = false;
     } else {
         // Sample the already computed trajectory
         rml_result = rml_->RMLPositionAtAGivenSampleTime(
@@ -333,7 +349,7 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
         double tracking_error = std::abs(rml_out_->NewPositionVector->VecData[i] - joints_[i].getPosition());
 
         if (tracking_error > position_tolerances_[i]) {
-            recompute_trajectory_ = true;
+            must_recompute_trajectory_ = true;
             ROS_WARN_STREAM("Tracking for joint " << i << " outside of tolerance! (" << tracking_error 
                 << " > " << position_tolerances_[i] << ")");
         }
@@ -357,7 +373,7 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
 
     case ReflexxesAPI::RML_FINAL_STATE_REACHED:
         ROS_DEBUG("final state reached");
-        recompute_trajectory_ = true;
+        must_recompute_trajectory_ = true;
         break;
 
     default:

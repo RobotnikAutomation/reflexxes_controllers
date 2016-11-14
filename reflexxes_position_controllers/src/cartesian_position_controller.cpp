@@ -157,6 +157,8 @@ bool CartesianPositionController::init(hardware_interface::PositionJointInterfac
     max_accelerations_.resize(n_joints_);
     max_jerks_.resize(n_joints_);
     commanded_positions_.resize(n_joints_);
+    previous_joint_velocity.resize(n_joints_);
+    current_joint_acceleration.resize(n_joints_);
 
     for (int i = 0; i < n_joints_; i++) {
         // Get joint name
@@ -290,10 +292,15 @@ void CartesianPositionController::update(const ros::Time &time, const ros::Durat
 
         ROS_DEBUG("Received new reference.");
     }
+    
+    // Compute acceleration
+    for (int i = 0; i < n_joints_; i++) {
+        current_joint_acceleration(i) = joints_[i].getVelocity() - previous_joint_velocity(i);
+        previous_joint_velocity(i) = joints_[i].getVelocity();
+    }
 
     // Initialize RML result
     int rml_result = 0;
-
 
     // Compute RML traj after the start time and if there are still points in the queue
     if (recompute_trajectory_) {
@@ -310,6 +317,7 @@ void CartesianPositionController::update(const ros::Time &time, const ros::Durat
         for (int i = 0; i < n_joints_; i++) {
             rml_in_->CurrentPositionVector->VecData[i] = joints_[i].getPosition();
             rml_in_->CurrentVelocityVector->VecData[i] = joints_[i].getVelocity();
+            rml_in_->CurrentAccelerationVector->VecData[i] = current_joint_acceleration(i);
 
             rml_in_->TargetPositionVector->VecData[i] = target_joint_position(i);
             rml_in_->TargetVelocityVector->VecData[i] = 0;
@@ -317,20 +325,20 @@ void CartesianPositionController::update(const ros::Time &time, const ros::Durat
             rml_in_->SelectionVector->VecData[i] = true;
         }
         
-        
         ROS_DEBUG_STREAM("Current position: " << std::endl << *(rml_in_->CurrentPositionVector));
         ROS_DEBUG_STREAM("Target position: " << std::endl << *(rml_in_->TargetPositionVector));
 
-        // Store the traj start time
+        // Store the traj start time 
+        // (skipping couple of frames for visual servoing applications: otherwise first position used 
+        // would be too close to current one and the robot would not move)
         traj_start_time_ = time;
 
         // Set desired execution time for this trajectory (definitely > 0)
-//         rml_in_->SetMinimumSynchronizationTime(0);
+        rml_in_->SetMinimumSynchronizationTime((period*2).toSec());
 
 //         ROS_DEBUG_STREAM("RML IN: time: " << rml_in_->GetMinimumSynchronizationTime());
 
-        // Hold fixed at final point once trajectory is complete
-        rml_flags_.BehaviorAfterFinalStateOfMotionIsReached = RMLPositionFlags::RECOMPUTE_TRAJECTORY;
+        rml_flags_.BehaviorAfterFinalStateOfMotionIsReached = RMLPositionFlags::KEEP_TARGET_VELOCITY;
         rml_flags_.SynchronizationBehavior = RMLPositionFlags::ONLY_TIME_SYNCHRONIZATION;
 
         // Compute trajectory
@@ -340,12 +348,13 @@ void CartesianPositionController::update(const ros::Time &time, const ros::Durat
 
         // Disable recompute flag
         recompute_trajectory_ = false;
-    } else {
-        // Sample the already computed trajectory
-        rml_result = rml_->RMLPositionAtAGivenSampleTime(
-                         (time - traj_start_time_).toSec(),
-                         rml_out_.get());
     }
+    
+    // Sample the already computed trajectory
+    rml_result = rml_->RMLPositionAtAGivenSampleTime(
+                        (time - traj_start_time_).toSec(),
+                        rml_out_.get());
+
 
     // Determine if any of the joint tolerances have been violated
     for (int i = 0; i < n_joints_; i++) {
@@ -419,6 +428,9 @@ void CartesianPositionController::update(const ros::Time &time, const ros::Durat
         }
         */
     }
+    
+    if (loop_count_ == 1000)
+        ROS_INFO("period: %f seconds", period.toSec());
 
     // Increment the loop count
     loop_count_++;

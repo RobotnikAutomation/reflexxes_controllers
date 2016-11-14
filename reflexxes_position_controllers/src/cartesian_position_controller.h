@@ -136,6 +136,10 @@ private:
     KDL::JntArray target_joint_position;
     std::string root_name;
     std::string tip_name;
+    
+    //! Acceleration computation
+    KDL::JntArray previous_joint_velocity;
+    KDL::JntArray current_joint_acceleration;
 
     //! Trajectory Generator
     boost::shared_ptr<ReflexxesAPI> rml_;

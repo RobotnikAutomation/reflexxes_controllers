@@ -4,24 +4,44 @@ Reflexxes Effort Controllers
 Example rosparam controller configuration:
 
 ```yml
-left_joint_position_controller:
-  type: reflexxes_position_controllers/JointTrajectoryController
-  sampling_resolution: 0.001
-  joint_names: 
-    - 'joint_1'
-    - 'joint_2'
-    - 'joint_3'
-  joints:
-    joint_1:
-      pid: {p: 10.0, i: 0.0, d: 2.0}
-      position_tolerance: 0.1
-      max_acceleration: 0.5
-    joint_2:
-      pid: {p: 10.0, i: 0.0, d: 2.0}
-      position_tolerance: 0.1
-      max_acceleration: 0.5
-    joint_3:
-      pid: {p: 10.0, i: 0.0, d: 2.0}
-      position_tolerance: 0.1
-      max_acceleration: 0.5
+reflexxes_controller:
+    type: reflexxes_position_controllers/JointPositionController
+    recompute_trajectory: false
+    joint_names: 
+        - lwr_0_joint
+        - lwr_1_joint
+        - lwr_2_joint
+        - lwr_3_joint
+        - lwr_4_joint
+        - lwr_5_joint
+        - lwr_6_joint
+    joints:
+        lwr_0_joint:
+            position_tolerance: 0.2
+            max_acceleration: 0.5
+            max_velocity: 0.24
+        lwr_1_joint:
+            position_tolerance: 0.2
+            max_acceleration: 0.5
+            max_velocity: 0.24
+        lwr_2_joint:
+            position_tolerance: 0.2
+            max_acceleration: 0.5
+            max_velocity: 0.24
+        lwr_3_joint:
+            position_tolerance: 0.2
+            max_acceleration: 0.5
+            max_velocity: 0.24
+        lwr_4_joint:
+            position_tolerance: 0.2
+            max_acceleration: 0.5
+            max_velocity: 0.24
+        lwr_5_joint:
+            position_tolerance: 0.2
+            max_acceleration: 0.5
+            max_velocity: 0.24
+        lwr_6_joint:
+            position_tolerance: 0.2
+            max_acceleration: 0.5
+            max_velocity: 0.24
 ```

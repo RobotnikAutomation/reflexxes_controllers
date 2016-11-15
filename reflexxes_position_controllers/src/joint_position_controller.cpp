@@ -357,12 +357,7 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
 
     // Compute command
     for (int i = 0; i < n_joints_; i++) {
-        // Convenience variables
-        double pos_actual = joints_[i].getPosition();
-
-        double pos_target = rml_out_->NewPositionVector->VecData[i];
-
-        commanded_positions_[i] = pos_target;
+        commanded_positions_[i] = rml_out_->NewPositionVector->VecData[i];
     }
 
     // Only set a different position command if the

@@ -113,6 +113,7 @@ public:
     realtime_tools::RealtimeBuffer<trajectory_msgs::JointTrajectoryPoint> trajectory_command_buffer_;
 
     //! Trajectory parameters
+    double minimum_synchronization_time_;
     double sampling_resolution_;
     bool recompute_trajectory_;
     

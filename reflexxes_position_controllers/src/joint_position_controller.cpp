@@ -57,10 +57,16 @@
 
 namespace reflexxes_position_controllers {
 
+const double DEFAULT_SAMPLING_RESOLUTION = 0.001;    
+const double DEFAULT_POSITION_TOLERANCE = 0.1;
+const double DEFAULT_MAX_ACCELERATION = 1.0;
+const double DEFAULT_MAX_JERK = 1000.0;
+const double DEFAULT_MIN_SYNCHRONIZATION_TIME = 0;
+
 JointPositionController::JointPositionController()
     : loop_count_(0),
       decimation_(10),
-      sampling_resolution_(0.001),
+      sampling_resolution_(DEFAULT_SAMPLING_RESOLUTION),
       new_reference_(false),
       must_recompute_trajectory_(false)
 {}
@@ -128,7 +134,7 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
         ROS_INFO("No sampling_resolution specified (namespace: %s), using default.", nh_.getNamespace().c_str());
     }
 
-    nh_.param("sampling_resolution", sampling_resolution_, 0.001);
+    nh_.param("sampling_resolution", sampling_resolution_, DEFAULT_SAMPLING_RESOLUTION);
     
     // Get behavior after reaching point
     if (!nh_.hasParam("recompute_trajectory")) {
@@ -136,6 +142,14 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
     }
 
     nh_.param("recompute_trajectory", recompute_trajectory_, false);
+    
+    // Get minimum synchronization time
+    if (!nh_.hasParam("minimum_synchronization_time")) {
+        ROS_INFO("No minimum synchronization time specified (namespace: %s), using default (%f).", 
+                 nh_.getNamespace().c_str(), DEFAULT_MIN_SYNCHRONIZATION_TIME);
+    }
+
+    nh_.param("minimum_synchronization_time", minimum_synchronization_time_, DEFAULT_MIN_SYNCHRONIZATION_TIME);
 
     // Create trajectory generator
     rml_.reset(new ReflexxesAPI(n_joints_, sampling_resolution_));
@@ -180,11 +194,13 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
 
             // Get position tolerance
             if (!joint_nh.hasParam("position_tolerance")) {
-                ROS_INFO("No position_tolerance specified (namespace: %s), using default.",
-                         joint_nh.getNamespace().c_str());
-            }
+                ROS_INFO("No position_tolerance specified (namespace: %s), using default (%f).",
+                         joint_nh.getNamespace().c_str(), DEFAULT_POSITION_TOLERANCE);
+            } 
 
-            joint_nh.param("position_tolerance", position_tolerances_[i], 0.1);
+            joint_nh.param("position_tolerance", position_tolerances_[i], DEFAULT_POSITION_TOLERANCE);
+            ROS_INFO("Using tolerance %f for joint %d.",
+                         position_tolerances_[i], i);
             
             // Get maximum velocity
             if (!joint_nh.hasParam("max_velocity")) {
@@ -192,7 +208,7 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
                          joint_nh.getNamespace().c_str());
             }
 
-            joint_nh.param("max_velocity", max_velocities_[i], 0.0);
+            joint_nh.param("max_velocity", max_velocities_[i], 0.0);  // default will be replaced later
 
             // Get maximum acceleration
             if (!joint_nh.hasParam("max_acceleration")) {
@@ -200,7 +216,7 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
                          joint_nh.getNamespace().c_str());
             }
 
-            joint_nh.param("max_acceleration", max_accelerations_[i], 1.0);
+            joint_nh.param("max_acceleration", max_accelerations_[i], DEFAULT_MAX_ACCELERATION);
 
             // Get maximum jerk
             if (!joint_nh.hasParam("max_jerk")) {
@@ -208,7 +224,7 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
                          joint_nh.getNamespace().c_str());
             }
 
-            joint_nh.param("max_jerk", max_jerks_[i], 1000.0);
+            joint_nh.param("max_jerk", max_jerks_[i], DEFAULT_MAX_JERK);
         }
 
         // Get ros_control joint handle
@@ -322,7 +338,7 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
         traj_start_time_ = time;
 
         // Set desired execution time for this trajectory (definitely > 0)
-//         rml_in_->SetMinimumSynchronizationTime(0);
+        rml_in_->SetMinimumSynchronizationTime(minimum_synchronization_time_);
 
 //         ROS_DEBUG_STREAM("RML IN: time: " << rml_in_->GetMinimumSynchronizationTime());
 

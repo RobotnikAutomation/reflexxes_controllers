@@ -143,6 +143,7 @@ private:
     
     //! Helper variables
     bool new_reference_;
+    bool reached_reference_;
     bool must_recompute_trajectory_;
 
     boost::scoped_ptr<realtime_tools::RealtimePublisher<control_msgs::JointControllerState> > controller_state_publisher_ ;

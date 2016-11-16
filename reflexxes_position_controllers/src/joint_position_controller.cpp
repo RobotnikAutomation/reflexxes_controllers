@@ -68,6 +68,7 @@ JointPositionController::JointPositionController()
       decimation_(10),
       sampling_resolution_(DEFAULT_SAMPLING_RESOLUTION),
       new_reference_(false),
+      new_reference_(true),
       must_recompute_trajectory_(false)
 {}
 
@@ -383,8 +384,9 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
         break;
 
     case ReflexxesAPI::RML_FINAL_STATE_REACHED:
-        ROS_DEBUG("final state reached");
+        ROS_WARN("final state reached");
         must_recompute_trajectory_ = true;
+        reached_reference_ = true;
         break;
 
     default:
@@ -399,9 +401,11 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
     };
 
     // Set the lower-level commands
-    ROS_DEBUG("setting command");
-    for (int i = 0; i < n_joints_; i++) {
-        joints_[i].setCommand(commanded_positions_[i]);
+    if (!reached_reference_) {
+        ROS_DEBUG("setting command");
+        for (int i = 0; i < n_joints_; i++) {
+            joints_[i].setCommand(commanded_positions_[i]);
+        }
     }
 
     // Publish state
@@ -450,6 +454,7 @@ void JointPositionController::setTrajectoryCommand(
     //  * there is only one single rt thread
     trajectory_command_buffer_.writeFromNonRT(*msg);
     new_reference_ = true;
+    reached_reference_ = false;
 }
 
 

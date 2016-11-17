@@ -111,6 +111,8 @@ public:
 public:
     /**< Last commanded position. */
     realtime_tools::RealtimeBuffer<trajectory_msgs::JointTrajectoryPoint> trajectory_command_buffer_;
+    trajectory_msgs::JointTrajectoryPoint commanded_trajectory_;
+    trajectory_msgs::JointTrajectoryPoint last_commanded_trajectory_;
 
     //! Trajectory parameters
     double minimum_synchronization_time_;

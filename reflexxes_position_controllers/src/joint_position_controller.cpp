@@ -67,8 +67,7 @@ JointPositionController::JointPositionController()
     : loop_count_(0),
       decimation_(10),
       sampling_resolution_(DEFAULT_SAMPLING_RESOLUTION),
-      new_reference_(false),
-      new_reference_(true),
+      reached_reference_(false),
       must_recompute_trajectory_(false)
 {}
 
@@ -263,6 +262,11 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
     // TODO: create state publisher
     //controller_state_publisher_.reset(
     //new realtime_tools::RealtimePublisher<control_msgs::JointControllerState>(n, "state", 1));
+    
+    // Reset commands
+    for (int i = 0; i < n_joints_; i++) {
+        commanded_positions_[i] = joints_[i].getPosition();
+    }
 
     // Create command subscriber
     trajectory_command_sub_ = nh_.subscribe<trajectory_msgs::JointTrajectoryPoint>(
@@ -274,17 +278,17 @@ bool JointPositionController::init(hardware_interface::PositionJointInterface *r
 
 
 void JointPositionController::starting(const ros::Time &time) {
+    ROS_WARN_STREAM("starting");
     // Define an initial command point from the current position
-    trajectory_msgs::JointTrajectoryPoint initial_point;
-
     for (int i = 0; i < n_joints_; i++) {
-        initial_point.positions.push_back(joints_[i].getPosition());
-        initial_point.velocities.push_back(joints_[i].getVelocity());
-        initial_point.accelerations.push_back(0.0);
+        commanded_trajectory_.positions.push_back(joints_[i].getPosition());
+        commanded_trajectory_.velocities.push_back(joints_[i].getVelocity());
+        commanded_trajectory_.accelerations.push_back(0.0);
     }
 
-    initial_point.time_from_start = ros::Duration(1.0);
-    trajectory_command_buffer_.initRT(initial_point);
+    commanded_trajectory_.time_from_start = ros::Duration(1.0);
+    trajectory_command_buffer_.initRT(commanded_trajectory_);
+    last_commanded_trajectory_ = commanded_trajectory_;
 
     // Reset commands
     for (int i = 0; i < n_joints_; i++) {
@@ -292,32 +296,37 @@ void JointPositionController::starting(const ros::Time &time) {
     }
 
     // Set new reference flag for initial command point
-    new_reference_ = true;
+    must_recompute_trajectory_ = true;
+    ROS_WARN_STREAM("started");
 }
 
 void JointPositionController::update(const ros::Time &time, const ros::Duration &period) {
-    // Read the latest commanded trajectory message
-    const trajectory_msgs::JointTrajectoryPoint &commanded_trajectory = *(trajectory_command_buffer_.readFromRT());
-
-    // Check for a new reference
+    ROS_WARN_STREAM("updating");
+    
     if (new_reference_) {
-
-        // Reset new reference flag
+        // Read the latest commanded trajectory message
+        commanded_trajectory_ = *trajectory_command_buffer_.readFromRT();
         new_reference_ = false;
-        // Set flag to recompute trajectory
-        must_recompute_trajectory_ = true;
-
-        ROS_DEBUG("Received new reference.");
+        
+        for (int i = 0; i < n_joints_; i ++) {
+            if (std::abs(commanded_trajectory_.positions[i] - last_commanded_trajectory_.positions[i]) > 0.01) {  // TODO tolerance as parameter
+                must_recompute_trajectory_ = true;
+                reached_reference_ = false;
+                last_commanded_trajectory_ = commanded_trajectory_;
+            }
+        }
     }
 
     // Initialize RML result
     int rml_result = 0;
+    
+    ROS_WARN_STREAM("checking for having to recompute");
 
 
     // Compute RML traj after the start time and if there are still points in the queue
     if (must_recompute_trajectory_) {
         // Compute the trajectory
-        ROS_DEBUG("RML Recomputing trajectory...");
+        ROS_WARN_STREAM("RML Recomputing trajectory...");
 
         // Update RML input parameters
         for (int i = 0; i < n_joints_; i++) {
@@ -325,8 +334,8 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
             rml_in_->CurrentVelocityVector->VecData[i] = joints_[i].getVelocity();
             rml_in_->CurrentAccelerationVector->VecData[i] = 0.0;
 
-            rml_in_->TargetPositionVector->VecData[i] = commanded_trajectory.positions[i];
-            rml_in_->TargetVelocityVector->VecData[i] = commanded_trajectory.velocities[i];
+            rml_in_->TargetPositionVector->VecData[i] = commanded_trajectory_.positions[i];
+            rml_in_->TargetVelocityVector->VecData[i] = commanded_trajectory_.velocities[i];
 
             rml_in_->SelectionVector->VecData[i] = true;
         }
@@ -384,8 +393,8 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
         break;
 
     case ReflexxesAPI::RML_FINAL_STATE_REACHED:
-        ROS_WARN("final state reached");
-        must_recompute_trajectory_ = true;
+        ROS_WARN_STREAM("final state reached");
+        must_recompute_trajectory_ = recompute_trajectory_;
         reached_reference_ = true;
         break;
 
@@ -402,7 +411,7 @@ void JointPositionController::update(const ros::Time &time, const ros::Duration 
 
     // Set the lower-level commands
     if (!reached_reference_) {
-        ROS_DEBUG("setting command");
+        ROS_WARN_STREAM("setting command");
         for (int i = 0; i < n_joints_; i++) {
             joints_[i].setCommand(commanded_positions_[i]);
         }
@@ -454,7 +463,6 @@ void JointPositionController::setTrajectoryCommand(
     //  * there is only one single rt thread
     trajectory_command_buffer_.writeFromNonRT(*msg);
     new_reference_ = true;
-    reached_reference_ = false;
 }
 
 

@@ -126,6 +126,10 @@ public:
     std::vector<double> max_accelerations_;
     std::vector<double> max_jerks_;
     std::vector<double> commanded_positions_;
+    std::vector<double> current_velocities_;
+    std::vector<double> current_accelerations_;  
+    std::vector<double> previous_positions_;  //* to compute velocities
+    std::vector<double> previous_velocities_;  //* to compute accelerations
     std::vector<hardware_interface::JointHandle> joints_;
     std::vector<boost::shared_ptr<const urdf::Joint> > urdf_joints_;
 
@@ -147,6 +151,7 @@ private:
     bool new_reference_;
     bool reached_reference_;
     bool must_recompute_trajectory_;
+    double command_update_tolerance_;
 
     boost::scoped_ptr<realtime_tools::RealtimePublisher<control_msgs::JointControllerState> > controller_state_publisher_ ;
 

@@ -118,7 +118,7 @@ public:
     std::vector<double> max_jerks_;
     std::vector<double> commanded_positions_;
     std::vector<hardware_interface::JointHandle> joints_;
-    std::vector<boost::shared_ptr<const urdf::Joint> > urdf_joints_;
+    std::vector<urdf::JointConstSharedPtr > urdf_joints_;
 
     size_t point_index_;
     ros::Time commanded_start_time_;

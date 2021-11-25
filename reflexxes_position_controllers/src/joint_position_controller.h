@@ -131,7 +131,7 @@ public:
     std::vector<double> previous_positions_;  //* to compute velocities
     std::vector<double> previous_velocities_;  //* to compute accelerations
     std::vector<hardware_interface::JointHandle> joints_;
-    std::vector<boost::shared_ptr<const urdf::Joint> > urdf_joints_;
+    std::vector<urdf::JointConstSharedPtr > urdf_joints_;
 
 private:
     ros::NodeHandle nh_;

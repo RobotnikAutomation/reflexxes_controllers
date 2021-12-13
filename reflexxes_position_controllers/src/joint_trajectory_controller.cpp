@@ -227,13 +227,12 @@ bool JointTrajectoryController::init(hardware_interface::PositionJointInterface 
     }
 
     // Create state publisher
-    // TODO: create state publisher
-    //controller_state_publisher_.reset(
-    //new realtime_tools::RealtimePublisher<control_msgs::JointControllerState>(n, "state", 1));
+    controller_state_publisher_.reset(
+    new realtime_tools::RealtimePublisher<control_msgs::JointTrajectoryControllerState>(n, "state", 1));
 
     // Create command subscriber
     trajectory_command_sub_ = nh_.subscribe<trajectory_msgs::JointTrajectory>(
-                                  "trajectory_command", 1, &JointTrajectoryController::trajectoryCommandCB, this);
+                                  "command", 1, &JointTrajectoryController::trajectoryCommandCB, this);
 
     return true;
 }
@@ -265,6 +264,7 @@ void JointTrajectoryController::starting(const ros::Time &time) {
 }
 
 void JointTrajectoryController::update(const ros::Time &time, const ros::Duration &period) {
+
     // Read the latest commanded trajectory message
     const trajectory_msgs::JointTrajectory &commanded_trajectory = *(trajectory_command_buffer_.readFromRT());
 
@@ -396,33 +396,22 @@ void JointTrajectoryController::update(const ros::Time &time, const ros::Duratio
 
     // Publish state
     if (loop_count_ % decimation_ == 0) {
-        /*
-         *      boost::scoped_ptr<realtime_tools::RealtimePublisher<controllers_msgs::JointControllerState> >
-         *        &state_pub = controller_state_publisher_;
-         *
-         *      for(int i=0; i<n_joints_; i++) {
-         *        if(state_pub && state_pub->trylock()) {
-         *          state_pub->msg_.header.stamp = time;
-         *          state_pub->msg_.set_point = pos_target;
-         *          state_pub->msg_.process_value = pos_actual;
-         *          state_pub->msg_.process_value_dot = vel_actual;
-         *          state_pub->msg_.error = pos_error;
-         *          state_pub->msg_.time_step = period.toSec();
-         *          state_pub->msg_.command = commanded_effort;
-         *
-         *          double dummy;
-         *          pids_[i]->getGains(
-         *              state_pub->msg_.p,
-         *              state_pub->msg_.i,
-         *              state_pub->msg_.d,
-         *              state_pub->msg_.i_clamp,
-         *              dummy);
-         *          state_pub->unlockAndPublish();
-        }
-        }
-        */
+       boost::scoped_ptr<realtime_tools::RealtimePublisher<control_msgs::JointTrajectoryControllerState> >
+         &state_pub = controller_state_publisher_;
+       state_pub->msg_.joint_names = joint_names_;
+       state_pub->msg_.desired.positions.resize(n_joints_);
+       state_pub->msg_.desired.velocities.resize(n_joints_);
+       state_pub->msg_.desired.accelerations.resize(n_joints_);
+       state_pub->msg_.actual.positions.resize(n_joints_);
+       state_pub->msg_.actual.velocities.resize(n_joints_);
+       state_pub->msg_.error.positions.resize(n_joints_);
+       state_pub->msg_.error.velocities.resize(n_joints_);
+       for(int i=0; i<n_joints_; i++) {
+          state_pub->msg_.desired.positions[i] = commanded_positions_[i];
+          state_pub->msg_.actual.positions[i] = joints_[i].getPosition();
+       }
+        state_pub->unlockAndPublish();
     }
-
     // Increment the loop count
     loop_count_++;
 }

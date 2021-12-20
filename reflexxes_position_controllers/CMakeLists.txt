@@ -20,7 +20,8 @@ find_package(catkin REQUIRED
   trac_ik_lib
   cmake_modules
   kdl_conversions
-  eigen_conversions)
+  eigen_conversions
+  actionlib)
   
 find_package(Eigen REQUIRED)
 

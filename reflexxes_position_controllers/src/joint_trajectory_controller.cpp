@@ -234,6 +234,10 @@ bool JointTrajectoryController::init(hardware_interface::PositionJointInterface 
     trajectory_command_sub_ = nh_.subscribe<trajectory_msgs::JointTrajectory>(
                                   "command", 1, &JointTrajectoryController::trajectoryCommandCB, this);
 
+    as_.reset(new actionlib::SimpleActionServer<control_msgs::FollowJointTrajectoryAction>(nh_, "follow_joint_trajectory", false));
+    as_->registerGoalCallback(boost::bind(&JointTrajectoryController::goalCB, this));
+    as_->registerPreemptCallback(boost::bind(&JointTrajectoryController::preemptCB, this));
+    as_->start();
     return true;
 }
 
@@ -273,8 +277,10 @@ void JointTrajectoryController::update(const ros::Time &time, const ros::Duratio
         // Start trajectory immediately if stamp is zero
         if (commanded_trajectory.header.stamp.isZero()) {
             commanded_start_time_ = time;
+            ROS_INFO("Start is 0");
         } else {
             commanded_start_time_ = commanded_trajectory.header.stamp;
+            ROS_INFO("STart is NOT zero");
         }
 
         // Reset point index
@@ -316,11 +322,17 @@ void JointTrajectoryController::update(const ros::Time &time, const ros::Duratio
         // Store the traj start time
         traj_start_time_ = time;
 
-        // Set desired execution time for this trajectory (definitely > 0)
-        rml_in_->SetMinimumSynchronizationTime(
-            std::max(0.0, (active_traj_point.time_from_start - (traj_start_time_ - commanded_start_time_)).toSec()));
-
-        ROS_DEBUG_STREAM("RML IN: time: " << rml_in_->GetMinimumSynchronizationTime());
+        if (point_index_ == 0) {
+           rml_in_->SetMinimumSynchronizationTime(0);
+        }else {
+           rml_in_->SetMinimumSynchronizationTime((active_traj_point.time_from_start - commanded_trajectory.points[point_index_-1].time_from_start).toSec());
+        }
+//        // Set desired execution time for this trajectory (definitely > 0)
+//        rml_in_->SetMinimumSynchronizationTime(
+//            std::max(0.0, (active_traj_point.time_from_start - (traj_start_time_ - commanded_start_time_)).toSec()));
+//        double in_time = (active_traj_point.time_from_start - (traj_start_time_ - commanded_start_time_)).toSec();
+//        ROS_INFO("In time: %f", in_time);
+        ROS_INFO_STREAM("RML IN: time: " << rml_in_->GetMinimumSynchronizationTime());
 
         // Hold fixed at final point once trajectory is complete
         rml_flags_.BehaviorAfterFinalStateOfMotionIsReached = RMLPositionFlags::RECOMPUTE_TRAJECTORY;
@@ -369,7 +381,7 @@ void JointTrajectoryController::update(const ros::Time &time, const ros::Duratio
         break;
 
     case ReflexxesAPI::RML_FINAL_STATE_REACHED:
-
+        //ROS_INFO("Reached %d point", point_index_);
         // Pop the active point off the trajectory
         if (trajectory_incomplete) {
             point_index_++;
@@ -410,7 +422,7 @@ void JointTrajectoryController::update(const ros::Time &time, const ros::Duratio
           state_pub->msg_.desired.positions[i] = commanded_positions_[i];
           state_pub->msg_.actual.positions[i] = joints_[i].getPosition();
        }
-        state_pub->unlockAndPublish();
+      state_pub->unlockAndPublish();
     }
     // Increment the loop count
     loop_count_++;
@@ -429,6 +441,22 @@ void JointTrajectoryController::setTrajectoryCommand(
     //  * there is only one single rt thread
     trajectory_command_buffer_.writeFromNonRT(*msg);
     new_reference_ = true;
+}
+
+void JointTrajectoryController::goalCB()
+{
+  auto goal = as_->acceptNewGoal();
+  //trajectory_from_action_ = goal->trajectory;
+  //trajectory_msgs::JointTrajectoryPtr trajectory(&trajectory_from_action_);
+  //this->setTrajectoryCommand(trajectory);
+  trajectory_command_buffer_.writeFromNonRT(goal->trajectory);
+  new_reference_ = true;
+  ROS_INFO("Puesta trayectoria!");
+}
+
+void JointTrajectoryController::preemptCB()
+{
+  as_->setPreempted();
 }
 
 

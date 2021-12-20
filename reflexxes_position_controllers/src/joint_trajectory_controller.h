@@ -88,6 +88,9 @@
 
 #include <trajectory_msgs/JointTrajectory.h>
 
+#include <actionlib/server/simple_action_server.h>
+#include <control_msgs/FollowJointTrajectoryAction.h>
+
 #include <ReflexxesAPI.h>
 #include <RMLPositionFlags.h>
 #include <RMLPositionInputParameters.h>
@@ -149,6 +152,11 @@ private:
     ros::Subscriber trajectory_command_sub_;
     void trajectoryCommandCB(const trajectory_msgs::JointTrajectoryConstPtr &msg);
     void setTrajectoryCommand(const trajectory_msgs::JointTrajectoryConstPtr &msg);
+    
+    boost::shared_ptr<actionlib::SimpleActionServer<control_msgs::FollowJointTrajectoryAction>> as_;
+    void goalCB();
+    void preemptCB();
+    trajectory_msgs::JointTrajectory trajectory_from_action_;
 };
 
 } // namespace

@@ -421,6 +421,8 @@ void JointTrajectoryController::update(const ros::Time &time, const ros::Duratio
        for(int i=0; i<n_joints_; i++) {
           state_pub->msg_.desired.positions[i] = commanded_positions_[i];
           state_pub->msg_.actual.positions[i] = joints_[i].getPosition();
+          state_pub->msg_.desired.velocities[i] = rml_out_->NewVelocityVector->VecData[i];
+          state_pub->msg_.desired.accelerations[i] = rml_out_->NewAccelerationVector->VecData[i];
        }
       state_pub->unlockAndPublish();
     }
